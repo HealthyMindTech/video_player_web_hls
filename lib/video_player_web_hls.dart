@@ -14,6 +14,21 @@ import 'hls.dart';
 import 'no_script_tag_exception.dart';
 import 'src/shims/dart_ui.dart' as ui;
 
+const Duration jsCompatibleTimeUnset = Duration(
+  milliseconds: -9007199254740990, // Number.MIN_SAFE_INTEGER + 1. -(2^53 - 1)
+);
+
+Duration? convertNumVideoDurationToPluginDuration(num duration) {
+  if (duration.isFinite) {
+    return Duration(
+      milliseconds: (duration * 1000).round(),
+    );
+  } else if (duration.isInfinite) {
+    return jsCompatibleTimeUnset;
+  }
+  return null;
+}
+
 // An error code value to error name Map.
 // See: https://developer.mozilla.org/en-US/docs/Web/API/MediaError/code
 const Map<int, String> _kErrorValueToErrorName = <int, String>{
@@ -346,7 +361,7 @@ class _VideoPlayer {
       // playback for any reason, such as permission issues.
       // The rejection handler is called with a DomException.
       // See: https://developer.mozilla.org/en-US/docs/Web/API/HTMLMediaElement/play
-      final DomException exception = e as DomException; 
+      final DomException exception = e as DomException;
       eventController.addError(PlatformException(
         code: exception.name,
         message: exception.message,
@@ -386,16 +401,21 @@ class _VideoPlayer {
   }
 
   void sendInitialized() {
+    final Duration? duration =
+        convertNumVideoDurationToPluginDuration(videoElement.duration);
+
+    final Size? size = videoElement.videoHeight.isFinite
+        ? Size(
+            videoElement.videoWidth.toDouble(),
+            videoElement.videoHeight.toDouble(),
+          )
+        : null;
+
     eventController.add(
       VideoEvent(
         eventType: VideoEventType.initialized,
-        duration: Duration(
-          milliseconds: (videoElement.duration * 1000).round(),
-        ),
-        size: Size(
-          videoElement.videoWidth.toDouble(),
-          videoElement.videoHeight.toDouble(),
-        ),
+        duration: duration,
+        size: size,
       ),
     );
   }
